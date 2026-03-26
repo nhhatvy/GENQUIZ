@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum QuestionType {
+  multiple_choice
+  true_false
+}
+
+enum DifficultyLevel {
+  EASY
+  MEDIUM
+  HARD
+}
+
+
+model categories {
+  category_id BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name        String    @unique @db.VarChar(100)
+  slug        String    @unique @db.VarChar(100)
+  quizzes     quizzes[]
+
+  @@map("categories")
+}
+
+model quizzes {
+  quiz_id             BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  category_id         BigInt?         @db.UnsignedBigInt
+  creator_id          BigInt?          @db.UnsignedBigInt
+  title               String          @db.VarChar(255)
+  slug                String          @unique @db.VarChar(255)
+  description         String?         @db.Text
+  
+  time_limit          Int             @default(0) @db.UnsignedInt
+  status              QuizStatus      @default(DRAFT)
+  difficulty          DifficultyLevel @default(MEDIUM)
+  passing_score       Int             @default(70) @db.UnsignedInt
+  randomize_questions Boolean         @default(false)
+  
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+
+  category            categories?     @relation(fields: [category_id], references: [category_id], onDelete: SetNull)
+  questions           questions[]
+
+  @@map("quizzes")
+}
+
+model questions {
+  question_id   BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  quiz_id       BigInt       @db.UnsignedBigInt
+  question_text String       @db.Text
+  question_type QuestionType
+  options_json  Json?
+  correct_index Json
+  points        Decimal      @default(1.0) @db.Decimal(10, 2)
+  order_inquiz  Int
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  quiz          quizzes      @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+
+  @@map("questions")
+}
