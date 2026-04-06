@@ -7,68 +7,76 @@ datasource db {
   provider = "mysql"
 }
 
+
 enum QuizStatus {
-  DRAFT
-  PUBLISHED
+  Draft
+  Published
+}
+
+enum Difficulty {
+  Easy
+  Medium
+  Hard
 }
 
 enum QuestionType {
-  multiple_choice
-  true_false
+  MULTIPLE_CHOICE
+  TRUE_FALSE
 }
 
-enum DifficultyLevel {
-  EASY
-  MEDIUM
-  HARD
-}
-
-
-model categories {
-  category_id BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  name        String    @unique @db.VarChar(100)
-  slug        String    @unique @db.VarChar(100)
-  quizzes     quizzes[]
-
-  @@map("categories")
-}
-
-model quizzes {
-  quiz_id             BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
-  category_id         BigInt?         @db.UnsignedBigInt
-  creator_id          BigInt?          @db.UnsignedBigInt
-  title               String          @db.VarChar(255)
-  slug                String          @unique @db.VarChar(255)
-  description         String?         @db.Text
+model Quiz {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?    @db.Text
+  category     String
+  difficulty   Difficulty @default(Medium)
   
-  time_limit          Int             @default(0) @db.UnsignedInt
-  status              QuizStatus      @default(DRAFT)
-  difficulty          DifficultyLevel @default(MEDIUM)
-  passing_score       Int             @default(70) @db.UnsignedInt
-  randomize_questions Boolean         @default(false)
+  // Các cài đặt từ Step 1 FE
+  timeLimit    Int        @default(15) // phút
+  passingScore Int        @default(70) // %
+  randomize    Boolean    @default(false)
   
-  created_at          DateTime        @default(now())
-  updated_at          DateTime        @updatedAt
+  status       QuizStatus @default(Draft)
+  completions  Int        @default(0) // Số lượt hoàn thành hiển thị ở Library
+  
+  // Quan hệ
+  questions    Question[]
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  category            categories?     @relation(fields: [category_id], references: [category_id], onDelete: SetNull)
-  questions           questions[]
-
-  @@map("quizzes")
+  @@index([category])
 }
 
-model questions {
-  question_id   BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
-  quiz_id       BigInt       @db.UnsignedBigInt
-  question_text String       @db.Text
-  question_type QuestionType
-  options_json  Json?
-  correct_index Json
-  points        Decimal      @default(1.0) @db.Decimal(10, 2)
-  order_inquiz  Int
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
+model Question {
+  id          String       @id @default(cuid())
+  text        String       @db.Text
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  
+  points      Int          @default(10)
+  order     Int
+  
+  // Quan hệ tới Quiz
+  quizId      String
+  quiz        Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  
+  // Quan hệ tới các lựa chọn
+  options     Option[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  quiz          quizzes      @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  @@index([quizId])
+}
 
-  @@map("questions")
+model Option {
+  id          String   @id @default(cuid())
+  text        String   @db.Text
+  isCorrect   Boolean  @default(false)
+  
+  // Quan hệ tới Question
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
 }

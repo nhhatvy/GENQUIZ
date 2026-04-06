@@ -1,75 +1,64 @@
+import { NextResponse } from "next/server";
+import { QuizSchema } from "@/lib/validations/quiz";
 import prisma from "@/lib/prisma";
-import { generateSlug, quizSchema } from "@/lib/validations/quiz";
-import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
-export async function POST(req: Request) {
+// Lấy danh sách Quiz từ Database
+export async function GET() {
   try {
-    const body = await req.json();
-    
-    const validation = quizSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(validation.error.flatten().fieldErrors, { status: 400 });
-    }
-
-    const data = validation.data;
-    const slug = `${generateSlug(data.title)}-${Date.now().toString().slice(-4)}`;
-
-    const newQuiz = await prisma.quizzes.create({
-      data: {
-        title: data.title,
-        slug: slug,
-        description: data.description,
-        time_limit: data.time_limit,
-        status: data.status,
-        difficulty: data.difficulty,
-        passing_score: data.passing_score,
-        randomize_questions: data.randomize_questions,
-        creator_id: data.creator_id ? BigInt(data.creator_id) : BigInt(1),
-        category_id: data.category_id ? BigInt(data.category_id) : null,
-      },
-    });
-
-    return NextResponse.json({
-      message: "Tạo Quiz thành công!",
-      data: JSON.parse(JSON.stringify(newQuiz, (_, v) => typeof v === 'bigint' ? v.toString() : v))
-    }, { status: 201 });
-
-  } catch (error: any) {
-    console.error("POST ERROR:", error);
-    return NextResponse.json({ message: "Lỗi hệ thống", error: error.message }, { status: 500 });
-  }
-}
-
-export async function GET(req: NextRequest) {
-  try {
-    const quizzes = await prisma.quizzes.findMany({
+    const quizzes = await prisma.quiz.findMany({
       include: {
-        category: {
-          select: { name: true }
-        },
         _count: {
           select: { questions: true }
         }
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { createdAt: 'desc' }
     });
-
-    const responseData = JSON.parse(
-      JSON.stringify(quizzes, (key, value) =>
-        typeof value === "bigint" ? value.toString() : value
-      )
-    );
-
-    return NextResponse.json({ data: responseData }, { status: 200 });
-  } catch (error: any) {
-    console.error("GET ERROR:", error);
-    return NextResponse.json({ 
-      message: "Lỗi hệ thống", 
-      details: error instanceof Error ? error.message : String(error) 
-    }, { status: 500 });
+    return NextResponse.json(quizzes);
+  } catch (error) {
+    console.error("[QUIZZES_GET]", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-export async function DELETE(req: NextRequest) {
-    await prisma.quizzes.deleteMany({})
-    return NextResponse.json({ message: "Tất cả quizzes đã được xóa thành công" }, { status: 200 })
+
+// Tạo mới Quiz
+export async function POST(req: Request) {
+  try {
+    const json = await req.json();
+    const body = QuizSchema.parse(json); 
+
+    const quiz = await prisma.quiz.create({
+      data: {
+        title: body.title,
+        description: body.description,
+        category: body.category,
+        difficulty: body.difficulty , // Ép kiểu PascalCase (Easy, Medium, Hard)
+        timeLimit: body.timeLimit,
+        passingScore: body.passingScore,
+        status: "Published",
+        questions: {
+          create: body.questions.map((q, index) => ({
+            text: q.text,
+            type: q.type,
+            points: q.points,
+            order: index,
+            options: {
+              create: q.options.map(opt => ({
+                text: opt.text,
+                isCorrect: opt.isCorrect
+              }))
+            }
+          }))
+        }
+      }
+    });
+
+    return NextResponse.json(quiz);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(error.issues, { status: 422 });
+    }
+    console.error("[QUIZ_POST]", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }
