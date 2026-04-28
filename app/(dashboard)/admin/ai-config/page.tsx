@@ -103,7 +103,7 @@ export default function AIConfigPage() {
     setSaving(true);
     try {
       const body: Record<string, string> = { provider, model };
-      if (editingKey && apiKey.trim()) body.apiKey = apiKey.trim();
+      if (apiKey.trim()) body.apiKey = apiKey.trim();
       const res = await fetch("/api/admin/ai-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

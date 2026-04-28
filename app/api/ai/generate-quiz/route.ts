@@ -169,6 +169,7 @@ export async function POST(req: Request) {
     const provider = cfg["ai_provider"] ?? "gemini";
 
     if (!apiKey) {
+      
       return NextResponse.json({ message: "AI API key not configured. Go to Admin → AI Config." }, { status: 500 });
     }
 
