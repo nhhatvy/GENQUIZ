@@ -28,16 +28,21 @@ const TABS = [
 
 const STATUS_OPTS = ["All", "Active", "Banned"];
 
+
 export default function ManageAccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [statusOpen, setStatusOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const [totalPages, setTotalPages] = useState(1);
 
   // Add Admin modal
   const [showModal, setShowModal] = useState(false);
@@ -52,23 +57,52 @@ export default function ManageAccountsPage() {
   };
 
   const fetchAccounts = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (TABS[activeTab].role) params.set("role", TABS[activeTab].role);
-    if (search) params.set("search", search);
-    if (statusFilter !== "All") params.set("status", statusFilter);
+  setLoading(true);
+  const params = new URLSearchParams();
+  console.log("CALL API:", `/api/admin/accounts?${params.toString()}`);
+  
+  if (TABS[activeTab].role) params.set("role", TABS[activeTab].role);
+  if (debouncedSearch) {
+  params.set("search", debouncedSearch.trim());
+} 
+  if (statusFilter !== "All") params.set("status", statusFilter);
+  
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  try {
     const res = await fetch(`/api/admin/accounts?${params}`);
-    if (res.ok) setAccounts(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      setAccounts(data.accounts);
+      setTotalPages(data.totalPages);
+    }
+  } catch (error) {
+    console.error("Fetch error:", error);
+  } finally {
     setLoading(false);
-  }, [activeTab, search, statusFilter]);
+  }
+}, [activeTab, debouncedSearch, statusFilter, page]); 
 
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+useEffect(() => {
+  fetchAccounts();
+}, [activeTab, debouncedSearch, statusFilter, page]);
 
-  // debounce search
-  useEffect(() => {
-    const t = setTimeout(() => fetchAccounts(), 300);
-    return () => clearTimeout(t);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+// debounce
+useEffect(() => {
+  const handler = setTimeout(() => {
+    setDebouncedSearch(search);
+  }, 300);
+
+  return () => clearTimeout(handler);
+}, [search]);
+
+// reset page ngay khi user gõ
+useEffect(() => {
+  setPage(1);
+}, [debouncedSearch, activeTab, statusFilter]);
+
+
 
   const handleBanToggle = async (user: Account) => {
     setActionLoading(user.id);
@@ -116,6 +150,12 @@ export default function ManageAccountsPage() {
 
   const avatarFallback = (u: Account) =>
     displayName(u).charAt(0).toUpperCase();
+
+  console.log("FETCH:", {
+  search,
+  debouncedSearch,
+  page
+});
 
   return (
     <div className="space-y-6 relative">
@@ -239,10 +279,10 @@ export default function ManageAccountsPage() {
                   key={tab.label}
                   onClick={() => setActiveTab(idx)}
                   className={cn(
-                    "px-4 py-1.5 rounded-md text-sm transition font-medium",
+                    "px-4 py-1.5 rounded-md text-sm transition-all duration-200 font-medium ",
                     activeTab === idx
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/50"
                   )}
                 >
                   {tab.label}
@@ -395,6 +435,29 @@ export default function ManageAccountsPage() {
                 ))}
               </tbody>
             </table>
+            <div className="flex items-center justify-between pt-4">
+              <span className="text-sm text-muted-foreground">
+                Page {page} / {totalPages}
+              </span>
+
+              <div className="flex gap-2">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(p => p - 1)}
+                  className="px-3 py-1 text-sm border rounded disabled:opacity-50"
+                >
+                  Prev
+                </button>
+
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1 text-sm border rounded disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
